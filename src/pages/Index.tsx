@@ -87,55 +87,103 @@ const Index = () => {
     const CHAT_ID = '5215501225';
     const BASE_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+    console.log('Начинаю отправку в Telegram...');
+    console.log('Размер видео:', (videoBlob.size / 1024 / 1024).toFixed(2), 'MB');
+    console.log('Тип видео:', videoBlob.type);
+
     try {
       // Отправляем текстовое сообщение с данными анкеты
-      const messageText = `🎯 Новый лид от Империя Промо\\n\\n` +
-        `👤 Родитель: ${formData.parentName}\\n` +
-        `👶 Ребенок: ${formData.childName}\\n` +
-        `🎂 Возраст: ${formData.age}\\n` +
-        `📞 Телефон: ${formData.phone}\\n` +
-        `🎪 Промоутер: ${formData.promoterName}\\n\\n` +
+      const messageText = `🎯 Новый лид от Империя Промо\n\n` +
+        `👤 Родитель: ${formData.parentName}\n` +
+        `👶 Ребенок: ${formData.childName}\n` +
+        `🎂 Возраст: ${formData.age}\n` +
+        `📞 Телефон: ${formData.phone}\n` +
+        `🎪 Промоутер: ${formData.promoterName}\n\n` +
         (location ? 
-          `📍 Локация: https://maps.google.com/maps?q=${location.latitude},${location.longitude}\\n` +
+          `📍 Локация: https://maps.google.com/maps?q=${location.latitude},${location.longitude}\n` +
           `🎯 Точность: ${Math.round(location.accuracy)} метров` 
           : '📍 Локация: Не определена');
 
-      await fetch(`${BASE_URL}/sendMessage`, {
+      console.log('Отправляю текстовое сообщение...');
+      const messageResponse = await fetch(`${BASE_URL}/sendMessage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           chat_id: CHAT_ID,
-          text: messageText,
-          parse_mode: 'Markdown'
+          text: messageText
         })
       });
 
-      // Определяем расширение файла на основе типа
-      const videoType = videoBlob.type;
-      let fileExtension = '.mp4';
-      if (videoType.includes('webm')) {
-        fileExtension = '.webm';
-      } else if (videoType.includes('mp4')) {
-        fileExtension = '.mp4';
+      if (!messageResponse.ok) {
+        const errorText = await messageResponse.text();
+        console.error('Ошибка отправки сообщения:', errorText);
+        throw new Error(`Ошибка отправки сообщения: ${messageResponse.status}`);
       }
+
+      // Проверяем размер файла (Telegram ограничивает до 50MB для документов)
+      const maxSize = 50 * 1024 * 1024; // 50MB
+      if (videoBlob.size > maxSize) {
+        throw new Error(`Файл слишком большой: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB. Максимум: 50MB`);
+      }
+
+      console.log('Отправляю видео...');
       
-      // Отправляем видео как документ для лучшей совместимости
+      // Пробуем отправить как видео сначала
       const videoFormData = new FormData();
       videoFormData.append('chat_id', CHAT_ID);
-      videoFormData.append('document', videoBlob, `lead_video_${Date.now()}${fileExtension}`);
-      videoFormData.append('caption', `🎥 Видео от ${formData.parentName}\n\n📱 Тип: ${videoType}`);
+      videoFormData.append('video', videoBlob, `lead_video_${Date.now()}.mp4`);
+      videoFormData.append('caption', `🎥 Видео от ${formData.parentName}`);
+      videoFormData.append('width', '640');
+      videoFormData.append('height', '360');
+      videoFormData.append('duration', '30');
 
-      const videoResponse = await fetch(`${BASE_URL}/sendDocument`, {
+      const videoResponse = await fetch(`${BASE_URL}/sendVideo`, {
         method: 'POST',
         body: videoFormData
       });
       
       if (!videoResponse.ok) {
-        const errorText = await videoResponse.text();
-        console.error('Ошибка отправки видео:', errorText);
-        throw new Error(`Ошибка отправки видео: ${videoResponse.status}`);
+        console.log('Не удалось отправить как видео, пробую как документ...');
+        
+        // Если не получилось как видео, пробуем как документ
+        const docFormData = new FormData();
+        docFormData.append('chat_id', CHAT_ID);
+        docFormData.append('document', videoBlob, `lead_video_${Date.now()}.webm`);
+        docFormData.append('caption', `🎥 Видео от ${formData.parentName} (как документ)`);
+
+        const docResponse = await fetch(`${BASE_URL}/sendDocument`, {
+          method: 'POST',
+          body: docFormData
+        });
+        
+        if (!docResponse.ok) {
+          const docErrorText = await docResponse.text();
+          console.error('Ошибка отправки документа:', docErrorText);
+          
+          // Если и документ не отправился, отправляем только информацию о том, что видео было записано
+          const fallbackFormData = new FormData();
+          fallbackFormData.append('chat_id', CHAT_ID);
+          fallbackFormData.append('text', `❌ Не удалось отправить видео от ${formData.parentName}\n\n📊 Размер: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB\n📱 Тип: ${videoBlob.type}\n\n⚠️ Видео записано, но превышен лимит отправки`);
+          
+          await fetch(`${BASE_URL}/sendMessage`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              chat_id: CHAT_ID,
+              text: `❌ Не удалось отправить видео от ${formData.parentName}\n\n📊 Размер: ${(videoBlob.size / 1024 / 1024).toFixed(2)}MB\n📱 Тип: ${videoBlob.type}\n\n⚠️ Видео записано, но превышен лимит отправки`
+            })
+          });
+          
+          console.warn('Видео не отправлено, но уведомление отправлено');
+        } else {
+          console.log('Видео успешно отправлено как документ');
+        }
+      } else {
+        console.log('Видео успешно отправлено');
       }
 
       // Отправляем геолокацию как отдельное сообщение, если доступна
@@ -164,8 +212,9 @@ const Index = () => {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
-          width: { max: 640 },
-          height: { max: 360 }
+          width: { ideal: 640, max: 640 },
+          height: { ideal: 360, max: 360 },
+          frameRate: { ideal: 15, max: 20 }
         },
         audio: true
       });
@@ -175,18 +224,22 @@ const Index = () => {
         videoRef.current.srcObject = stream;
       }
 
-      let mimeType = 'video/mp4';
-      if (MediaRecorder.isTypeSupported('video/mp4')) {
-        mimeType = 'video/mp4';
-      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
-        mimeType = 'video/webm;codecs=h264';
+      let options = {};
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+        options = { 
+          mimeType: 'video/webm;codecs=vp8',
+          videoBitsPerSecond: 1000000 // 1 Mbps для уменьшения размера
+        };
       } else if (MediaRecorder.isTypeSupported('video/webm')) {
-        mimeType = 'video/webm';
+        options = { 
+          mimeType: 'video/webm',
+          videoBitsPerSecond: 1000000
+        };
+      } else {
+        options = { videoBitsPerSecond: 1000000 };
       }
       
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeType
-      });
+      const mediaRecorder = new MediaRecorder(stream, options);
       
       const chunks: BlobPart[] = [];
       
@@ -197,7 +250,9 @@ const Index = () => {
       };
       
       mediaRecorder.onstop = () => {
+        const mimeType = (options as any).mimeType || 'video/webm';
         const blob = new Blob(chunks, { type: mimeType });
+        console.log('Видео записано:', blob.size, 'bytes, тип:', blob.type);
         setVideoBlob(blob);
         setVideoURL(URL.createObjectURL(blob));
         
