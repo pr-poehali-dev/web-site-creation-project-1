@@ -121,6 +121,7 @@ const Index = () => {
           <VideoRecorder
             isRecording={isRecording}
             videoURL={videoURL}
+            videoBlob={videoBlob}
             onStartRecording={startVideoRecording}
             onStopRecording={stopRecording}
             onRetakeVideo={retakeVideo}

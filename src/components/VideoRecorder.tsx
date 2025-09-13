@@ -2,10 +2,12 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { shareVideoToWhatsApp } from '@/utils/whatsapp';
 
 interface VideoRecorderProps {
   isRecording: boolean;
   videoURL: string;
+  videoBlob: Blob | null;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onRetakeVideo: () => void;
@@ -15,11 +17,20 @@ interface VideoRecorderProps {
 const VideoRecorder: React.FC<VideoRecorderProps> = ({
   isRecording,
   videoURL,
+  videoBlob,
   onStartRecording,
   onStopRecording,
   onRetakeVideo,
   videoRef
 }) => {
+  const handleShareToWhatsApp = async () => {
+    if (!videoBlob) return;
+    
+    const success = await shareVideoToWhatsApp(videoBlob, 'Посмотри мое видео!');
+    if (!success) {
+      alert('Не удалось поделиться в WhatsApp. Видео будет скачано.');
+    }
+  };
   return (
     <Card>
       <CardHeader>
@@ -79,6 +90,14 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({
                 >
                   <Icon name="RotateCcw" className="mr-2" size={16} />
                   Пересъемка
+                </Button>
+                <Button
+                  onClick={handleShareToWhatsApp}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  disabled={!videoBlob}
+                >
+                  <Icon name="MessageCircle" className="mr-2" size={16} />
+                  WhatsApp
                 </Button>
               </>
             )}
