@@ -2,7 +2,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
-import { shareVideoToWhatsApp } from '@/utils/whatsapp';
+import type { FormData } from './LeadForm';
+import type { LocationData } from '@/hooks/useTelegram';
 
 interface VideoRecorderProps {
   isRecording: boolean;
@@ -11,7 +12,10 @@ interface VideoRecorderProps {
   onStartRecording: () => void;
   onStopRecording: () => void;
   onRetakeVideo: () => void;
+  onShareToTelegram?: (videoBlob: Blob, formData: FormData, location: LocationData | null) => Promise<void>;
   videoRef: React.RefObject<HTMLVideoElement>;
+  formData?: FormData;
+  location?: LocationData | null;
 }
 
 const VideoRecorder: React.FC<VideoRecorderProps> = ({
