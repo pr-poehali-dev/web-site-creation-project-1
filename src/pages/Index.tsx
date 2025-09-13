@@ -13,6 +13,12 @@ interface FormData {
   promoterName: string;
 }
 
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+}
+
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<'home' | 'form' | 'success'>('home');
   const [formData, setFormData] = useState<FormData>({
@@ -26,6 +32,8 @@ const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [videoURL, setVideoURL] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [locationError, setLocationError] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -33,6 +41,107 @@ const Index = () => {
 
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const getCurrentLocation = (): Promise<LocationData> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Геолокация не поддерживается браузером'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          });
+        },
+        (error) => {
+          let errorMessage = 'Ошибка получения геолокации';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Доступ к геолокации запрещен';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Информация о местоположении недоступна';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Превышено время ожидания геолокации';
+              break;
+          }
+          reject(new Error(errorMessage));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
+        }
+      );
+    });
+  };
+
+  const sendToTelegram = async (formData: FormData, videoBlob: Blob, location: LocationData | null) => {
+    const BOT_TOKEN = '8286818285:AAGqkSsTlsbKCT1guKYoDpkL_OcldAVyuSE';
+    const CHAT_ID = '5215501225';
+    const BASE_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
+
+    try {
+      // Отправляем текстовое сообщение с данными анкеты
+      const messageText = `🎯 Новый лид от Империя Промо\\n\\n` +
+        `👤 Родитель: ${formData.parentName}\\n` +
+        `👶 Ребенок: ${formData.childName}\\n` +
+        `🎂 Возраст: ${formData.age}\\n` +
+        `📞 Телефон: ${formData.phone}\\n` +
+        `🎪 Промоутер: ${formData.promoterName}\\n\\n` +
+        (location ? 
+          `📍 Локация: https://maps.google.com/maps?q=${location.latitude},${location.longitude}\\n` +
+          `🎯 Точность: ${Math.round(location.accuracy)} метров` 
+          : '📍 Локация: Не определена');
+
+      await fetch(`${BASE_URL}/sendMessage`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chat_id: CHAT_ID,
+          text: messageText,
+          parse_mode: 'Markdown'
+        })
+      });
+
+      // Отправляем видео
+      const videoFormData = new FormData();
+      videoFormData.append('chat_id', CHAT_ID);
+      videoFormData.append('video', videoBlob, 'lead_video.webm');
+      videoFormData.append('caption', `Видео от ${formData.parentName}`);
+
+      await fetch(`${BASE_URL}/sendVideo`, {
+        method: 'POST',
+        body: videoFormData
+      });
+
+      // Отправляем геолокацию как отдельное сообщение, если доступна
+      if (location) {
+        await fetch(`${BASE_URL}/sendLocation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chat_id: CHAT_ID,
+            latitude: location.latitude,
+            longitude: location.longitude
+          })
+        });
+      }
+
+    } catch (error) {
+      console.error('Ошибка отправки в Telegram:', error);
+      throw error;
+    }
   };
 
   const startVideoRecording = async () => {
@@ -105,24 +214,26 @@ const Index = () => {
     }
 
     setIsSubmitting(true);
+    setLocationError('');
     
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('video', videoBlob, 'lead_video.webm');
-      formDataToSend.append('parent_name', formData.parentName);
-      formDataToSend.append('child_name', formData.childName);
-      formDataToSend.append('age', formData.age);
-      formDataToSend.append('phone', formData.phone);
-      formDataToSend.append('promoter_name', formData.promoterName);
+      // Получаем геолокацию
+      let currentLocation: LocationData | null = null;
+      try {
+        currentLocation = await getCurrentLocation();
+        setLocation(currentLocation);
+      } catch (locationErr) {
+        console.warn('Не удалось получить геолокацию:', locationErr);
+        setLocationError((locationErr as Error).message);
+      }
 
-      // Имитация отправки в Telegram
-      // В реальном проекте здесь будет запрос к Telegram Bot API
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Отправляем все данные в Telegram
+      await sendToTelegram(formData, videoBlob, currentLocation);
       
       setCurrentStep('success');
     } catch (error) {
       console.error('Ошибка отправки:', error);
-      alert('Ошибка при отправке данных');
+      alert('Ошибка при отправке данных: ' + (error as Error).message);
     } finally {
       setIsSubmitting(false);
     }
@@ -139,6 +250,8 @@ const Index = () => {
     });
     setVideoBlob(null);
     setVideoURL('');
+    setLocation(null);
+    setLocationError('');
     if (videoURL) {
       URL.revokeObjectURL(videoURL);
     }
@@ -176,7 +289,7 @@ const Index = () => {
                 <Icon name="Check" className="text-green-600" size={32} />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Успешно!</h2>
-              <p className="text-gray-600">Лид успешно отправлен</p>
+              <p className="text-gray-600">Лид успешно отправлен в Telegram</p>
             </div>
             
             <Button 
@@ -345,6 +458,31 @@ const Index = () => {
           </Card>
         </div>
 
+        {/* Статус геолокации */}
+        {locationError && (
+          <Card className="mt-4 border-orange-200 bg-orange-50">
+            <CardContent className="p-4">
+              <div className="flex items-center text-orange-700">
+                <Icon name="MapPin" className="mr-2" size={16} />
+                <span className="text-sm">{locationError}</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {location && (
+          <Card className="mt-4 border-green-200 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center text-green-700">
+                <Icon name="MapPin" className="mr-2" size={16} />
+                <span className="text-sm">
+                  Местоположение определено (точность: {Math.round(location.accuracy)}м)
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Кнопка отправки */}
         <div className="mt-6 text-center">
           <Button
@@ -356,7 +494,7 @@ const Index = () => {
             {isSubmitting ? (
               <>
                 <Icon name="Loader2" className="mr-2 animate-spin" size={16} />
-                Отправка...
+                Отправка в Telegram...
               </>
             ) : (
               <>
@@ -365,6 +503,9 @@ const Index = () => {
               </>
             )}
           </Button>
+          <p className="text-xs text-gray-500 mt-2">
+            При отправке будет определена ваша геолокация
+          </p>
         </div>
       </div>
     </div>
