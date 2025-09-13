@@ -15,6 +15,7 @@ interface VideoRecorderProps {
   onStopRecording: () => void;
   onRetakeVideo: () => void;
   onShareToTelegram?: (videoBlob: Blob, formData: FormData, location: LocationData | null) => Promise<void>;
+  onLeadSent?: () => void;
   videoRef: React.RefObject<HTMLVideoElement>;
   formData?: FormData;
   location?: LocationData | null;
@@ -28,6 +29,7 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({
   onStopRecording,
   onRetakeVideo,
   onShareToTelegram,
+  onLeadSent,
   videoRef,
   formData,
   location
@@ -76,6 +78,11 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({
     const success = await shareVideoToWhatsApp(videoBlob, message);
     if (!success) {
       alert('Не удалось поделиться в WhatsApp. Видео будет скачано.');
+    }
+    
+    // После отправки переходим на страницу успеха
+    if (onLeadSent) {
+      onLeadSent();
     }
   };
   return (

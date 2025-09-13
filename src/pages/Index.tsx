@@ -73,6 +73,10 @@ const Index = () => {
     }
   };
 
+  const handleLeadSent = () => {
+    setCurrentStep('success');
+  };
+
   const resetForm = () => {
     setCurrentStep('home');
     setFormData({
@@ -125,6 +129,7 @@ const Index = () => {
             onStartRecording={startVideoRecording}
             onStopRecording={stopRecording}
             onRetakeVideo={retakeVideo}
+            onLeadSent={handleLeadSent}
             videoRef={videoRef}
             formData={formData}
             location={location}
