@@ -112,16 +112,31 @@ const Index = () => {
         })
       });
 
-      // Отправляем видео
+      // Определяем расширение файла на основе типа
+      const videoType = videoBlob.type;
+      let fileExtension = '.mp4';
+      if (videoType.includes('webm')) {
+        fileExtension = '.webm';
+      } else if (videoType.includes('mp4')) {
+        fileExtension = '.mp4';
+      }
+      
+      // Отправляем видео как документ для лучшей совместимости
       const videoFormData = new FormData();
       videoFormData.append('chat_id', CHAT_ID);
-      videoFormData.append('video', videoBlob, 'lead_video.webm');
-      videoFormData.append('caption', `Видео от ${formData.parentName}`);
+      videoFormData.append('document', videoBlob, `lead_video_${Date.now()}${fileExtension}`);
+      videoFormData.append('caption', `🎥 Видео от ${formData.parentName}\n\n📱 Тип: ${videoType}`);
 
-      await fetch(`${BASE_URL}/sendVideo`, {
+      const videoResponse = await fetch(`${BASE_URL}/sendDocument`, {
         method: 'POST',
         body: videoFormData
       });
+      
+      if (!videoResponse.ok) {
+        const errorText = await videoResponse.text();
+        console.error('Ошибка отправки видео:', errorText);
+        throw new Error(`Ошибка отправки видео: ${videoResponse.status}`);
+      }
 
       // Отправляем геолокацию как отдельное сообщение, если доступна
       if (location) {
@@ -160,8 +175,17 @@ const Index = () => {
         videoRef.current.srcObject = stream;
       }
 
+      let mimeType = 'video/mp4';
+      if (MediaRecorder.isTypeSupported('video/mp4')) {
+        mimeType = 'video/mp4';
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=h264')) {
+        mimeType = 'video/webm;codecs=h264';
+      } else if (MediaRecorder.isTypeSupported('video/webm')) {
+        mimeType = 'video/webm';
+      }
+      
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp8'
+        mimeType: mimeType
       });
       
       const chunks: BlobPart[] = [];
@@ -173,7 +197,7 @@ const Index = () => {
       };
       
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
+        const blob = new Blob(chunks, { type: mimeType });
         setVideoBlob(blob);
         setVideoURL(URL.createObjectURL(blob));
         
