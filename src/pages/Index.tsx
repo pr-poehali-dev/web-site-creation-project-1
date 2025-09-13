@@ -156,30 +156,7 @@ const Index = () => {
           </Card>
         )}
 
-        {/* Кнопка отправки */}
-        <div className="mt-6 text-center">
-          <Button
-            onClick={submitData}
-            disabled={!videoURL || !formData.parentName || !formData.childName || !formData.phone || isSubmitting}
-            size="lg"
-            className="w-full max-w-md"
-          >
-            {isSubmitting ? (
-              <>
-                <Icon name="Loader2" className="mr-2 animate-spin" size={16} />
-                Отправка в Telegram...
-              </>
-            ) : (
-              <>
-                <Icon name="Send" className="mr-2" size={16} />
-                Отправить лид
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-gray-500 mt-2">
-            При отправке будет определена ваша геолокация
-          </p>
-        </div>
+
       </div>
     </div>
   );
