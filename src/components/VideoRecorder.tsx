@@ -143,8 +143,8 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   disabled={!videoBlob}
                 >
-                  <Icon name="MessageCircle" className="mr-2" size={16} />
-                  WhatsApp
+                  <Icon name="Send" className="mr-2" size={16} />
+                  Отправить лид
                 </Button>
               </>
             )}
