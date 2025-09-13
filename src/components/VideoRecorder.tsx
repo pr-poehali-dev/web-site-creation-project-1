@@ -2,8 +2,10 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
+import { shareVideoToWhatsApp } from '@/utils/whatsapp';
 import type { FormData } from './LeadForm';
 import type { LocationData } from '@/hooks/useTelegram';
+import { useTelegram } from '@/hooks/useTelegram';
 
 interface VideoRecorderProps {
   isRecording: boolean;
@@ -25,12 +27,53 @@ const VideoRecorder: React.FC<VideoRecorderProps> = ({
   onStartRecording,
   onStopRecording,
   onRetakeVideo,
-  videoRef
+  onShareToTelegram,
+  videoRef,
+  formData,
+  location
 }) => {
+  const { getCurrentLocation } = useTelegram();
+
   const handleShareToWhatsApp = async () => {
     if (!videoBlob) return;
     
-    const success = await shareVideoToWhatsApp(videoBlob, 'Посмотри мое видео!');
+    // Получаем актуальное местоположение
+    let currentLocation = location;
+    if (!currentLocation) {
+      try {
+        currentLocation = await getCurrentLocation();
+      } catch (error) {
+        console.warn('Не удалось получить геолокацию для WhatsApp:', error);
+      }
+    }
+    
+    // Формируем сообщение с данными анкеты
+    let message = '🎥 Новое видео!\n\n';
+    
+    if (formData) {
+      message += `👨‍👩‍👧‍👦 Данные анкеты:\n`;
+      message += `📝 Родитель: ${formData.parentName}\n`;
+      message += `👶 Ребенок: ${formData.childName}\n`;
+      message += `🎂 Возраст: ${formData.age}\n`;
+      message += `📱 Телефон: ${formData.phone}\n`;
+      if (formData.promoterName) {
+        message += `🤝 Промоутер: ${formData.promoterName}\n`;
+      }
+      message += '\n';
+    }
+    
+    if (currentLocation) {
+      message += `📍 Местоположение:\n`;
+      message += `🌍 Координаты: ${currentLocation.latitude}, ${currentLocation.longitude}\n`;
+      if (currentLocation.address) {
+        message += `🏠 Адрес: ${currentLocation.address}\n`;
+      }
+      message += '\n';
+    }
+    
+    message += '💼 Отправлено через Империя Промо';
+    
+    const success = await shareVideoToWhatsApp(videoBlob, message);
     if (!success) {
       alert('Не удалось поделиться в WhatsApp. Видео будет скачано.');
     }

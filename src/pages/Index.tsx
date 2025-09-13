@@ -126,6 +126,8 @@ const Index = () => {
             onStopRecording={stopRecording}
             onRetakeVideo={retakeVideo}
             videoRef={videoRef}
+            formData={formData}
+            location={location}
           />
         </div>
 
