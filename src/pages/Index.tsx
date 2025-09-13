@@ -3,11 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 import HomePage from '@/components/HomePage';
-import LeadForm, { FormData } from '@/components/LeadForm';
+import LeadForm from '@/components/LeadForm';
+import type { FormData } from '@/components/LeadForm';
 import VideoRecorder from '@/components/VideoRecorder';
 import SuccessPage from '@/components/SuccessPage';
 import { useVideoRecorder } from '@/hooks/useVideoRecorder';
-import { useTelegram, LocationData } from '@/hooks/useTelegram';
+import { useTelegram } from '@/hooks/useTelegram';
+import type { LocationData } from '@/hooks/useTelegram';
 
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<'home' | 'form' | 'success'>('home');

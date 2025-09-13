@@ -1,4 +1,4 @@
-import { FormData } from '@/components/LeadForm';
+import type { FormData } from '@/components/LeadForm';
 
 export interface LocationData {
   latitude: number;
