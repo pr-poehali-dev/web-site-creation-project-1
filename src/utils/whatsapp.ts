@@ -13,9 +13,13 @@ export const shareVideoToWhatsApp = async (videoBlob: Blob, message?: string) =>
   const { isIOS, isAndroid, isMobile } = detectDevice();
   
   try {
+    // Определяем правильное расширение файла на основе типа
+    const fileExtension = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
+    const fileName = `video${fileExtension}`;
+    
     // Проверяем поддержку Web Share API с файлами
     if (navigator.share && navigator.canShare) {
-      const file = new File([videoBlob], 'video.webm', { type: videoBlob.type });
+      const file = new File([videoBlob], fileName, { type: videoBlob.type });
       
       const shareData: ShareData = {
         files: [file],
@@ -32,11 +36,11 @@ export const shareVideoToWhatsApp = async (videoBlob: Blob, message?: string) =>
     
     // Fallback: попытка через URL схемы WhatsApp
     if (isMobile) {
-      // Создаем временную ссылку для скачивания видео
+      // Создаем временную ссылку для скачивания видео с правильным расширением
       const videoURL = URL.createObjectURL(videoBlob);
       const link = document.createElement('a');
       link.href = videoURL;
-      link.download = 'video.webm';
+      link.download = fileName;
       link.click();
       
       // После скачивания открываем WhatsApp
@@ -53,11 +57,11 @@ export const shareVideoToWhatsApp = async (videoBlob: Blob, message?: string) =>
       return true;
     }
     
-    // Для десктопа - просто скачиваем видео
+    // Для десктопа - просто скачиваем видео с правильным расширением
     const videoURL = URL.createObjectURL(videoBlob);
     const link = document.createElement('a');
     link.href = videoURL;
-    link.download = 'video.webm';
+    link.download = fileName;
     link.click();
     URL.revokeObjectURL(videoURL);
     

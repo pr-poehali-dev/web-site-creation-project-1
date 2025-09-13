@@ -26,18 +26,41 @@ export const useVideoRecorder = () => {
         videoRef.current.srcObject = stream;
       }
 
+      // Определяем лучший поддерживаемый формат для устройства
       let options = {};
-      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
-        options = { 
-          mimeType: 'video/webm;codecs=vp8',
-          videoBitsPerSecond: 1000000 // 1 Mbps для уменьшения размера
-        };
-      } else if (MediaRecorder.isTypeSupported('video/webm')) {
-        options = { 
-          mimeType: 'video/webm',
-          videoBitsPerSecond: 1000000
-        };
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      
+      if (isIOS || isSafari) {
+        // Для iOS и Safari используем MP4 с H.264
+        if (MediaRecorder.isTypeSupported('video/mp4;codecs=h264')) {
+          options = { 
+            mimeType: 'video/mp4;codecs=h264',
+            videoBitsPerSecond: 1500000
+          };
+        } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+          options = { 
+            mimeType: 'video/mp4',
+            videoBitsPerSecond: 1500000
+          };
+        }
       } else {
+        // Для остальных браузеров используем WebM
+        if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+          options = { 
+            mimeType: 'video/webm;codecs=vp8',
+            videoBitsPerSecond: 1000000
+          };
+        } else if (MediaRecorder.isTypeSupported('video/webm')) {
+          options = { 
+            mimeType: 'video/webm',
+            videoBitsPerSecond: 1000000
+          };
+        }
+      }
+      
+      // Fallback для любых устройств
+      if (!(options as any).mimeType) {
         options = { videoBitsPerSecond: 1000000 };
       }
       
@@ -52,11 +75,21 @@ export const useVideoRecorder = () => {
       };
       
       mediaRecorder.onstop = () => {
-        const mimeType = (options as any).mimeType || 'video/webm';
+        const mimeType = (options as any).mimeType || 'video/mp4';
         const blob = new Blob(chunks, { type: mimeType });
         console.log('Видео записано:', blob.size, 'bytes, тип:', blob.type);
-        setVideoBlob(blob);
-        setVideoURL(URL.createObjectURL(blob));
+        
+        // Для iOS создаем совместимое имя файла
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        if (isIOS && mimeType.includes('mp4')) {
+          // Создаем новый blob с правильным MIME типом для iOS
+          const iosBlob = new Blob(chunks, { type: 'video/mp4' });
+          setVideoBlob(iosBlob);
+          setVideoURL(URL.createObjectURL(iosBlob));
+        } else {
+          setVideoBlob(blob);
+          setVideoURL(URL.createObjectURL(blob));
+        }
         
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
